@@ -9,6 +9,7 @@ import (
 
 const abbreviationsFile = "~/.config/fish/functions/__fish_abbreviations.fish"
 const abbreviationCommand = "abbr"
+const tempFile = "/tmp/fish_abbrevs.fish"
 
 func check(e error) {
     if e != nil {
@@ -47,8 +48,8 @@ func isAbbreviationLine(line string) (bool) {
     return false
 }
 
-func printAbbreviation(abbrName string, abbrPhrase string) {
-    fmt.Printf("    abbr --add %s %s\n", abbrName, abbrPhrase)
+func getAbbrevCommand(abbrName string, abbrPhrase string) (string) {
+    return fmt.Sprintf("    abbr --add %s %s\n", abbrName, abbrPhrase)
 }
 
 func shouldPrintNewAbbreviation(abbrName string, existingAbbrev string, alreadyPrinted bool) (bool) {
@@ -61,32 +62,47 @@ func shouldPrintNewAbbreviation(abbrName string, existingAbbrev string, alreadyP
 func main() {
     args := os.Args
     numberOfArgs := len(args)
+
     if numberOfArgs < 3 {
         printUsage()
         os.Exit(1)
     }
+
     abbrName := args[1]
     abbrPhrase := strings.Join(args[2:], " ")
+
     expanded := expandHome(abbreviationsFile)
-    f, err := os.Open(expanded)
+    abbrevsFile, err := os.Open(expanded)
     check(err)
-    reader := bufio.NewReader(f)
+    defer abbrevsFile.Close()
+
+    reader := bufio.NewReader(abbrevsFile)
     check(err)
+
+    tempFile, err := os.Create(tempFile)
+    check(err)
+    defer tempFile.Close()
+
+    writer := bufio.NewWriter(tempFile)
+
     found := false
     for {
         line, err := reader.ReadString('\n')
         if isAbbreviationLine(line) {
             existingAbbrev := getAbbrevName(line)
             if shouldPrintNewAbbreviation(abbrName, existingAbbrev, found) {
-                printAbbreviation(abbrName, abbrPhrase)
+                abbrevCommand := getAbbrevCommand(abbrName, abbrPhrase)
+                writer.WriteString(abbrevCommand)
                 found = true
             }
-            fmt.Printf("%s", line)
+            writer.WriteString(line)
         } else {
-            fmt.Printf("%s", line)
+            writer.WriteString(line)
         }
         if err != nil {
             break
         }
     }
+
+    writer.Flush()
 }
