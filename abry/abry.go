@@ -26,9 +26,12 @@ func printUsage() {
 	fmt.Printf("usage: abry <abbreviation> <abbreviation-definition>\n")
 }
 
-func getTokenWithIndex(line string, tokenIndex int) string {
+func getAsTokens(line string) []string {
 	trimmedLine := strings.TrimSpace(line)
-	tokens := strings.Split(trimmedLine, " ")
+	return strings.Split(trimmedLine, " ")
+}
+func getTokenWithIndex(line string, tokenIndex int) string {
+	tokens := getAsTokens(line)
 	return tokens[tokenIndex]
 }
 
@@ -38,6 +41,12 @@ func getFirstToken(line string) string {
 
 func getAbbrevName(line string) string {
 	return getTokenWithIndex(line, 2)
+}
+
+func getAbbrevPhrase(line string) string {
+	tokens := getAsTokens(line)
+	phraseTokens := tokens[3:]
+	return strings.Join(phraseTokens, " ")
 }
 
 func isAbbreviationLine(line string) bool {
@@ -58,6 +67,9 @@ func maybeWriteNewAbbreviation(line string, abbrName string, abbrPhrase string, 
 		abbrevCommand := getAbbrevCommand(abbrName, abbrPhrase)
 		writer.WriteString(abbrevCommand)
 		return true
+	} else if existingAbbrev == abbrName {
+		existingAbbrevPhrase := getAbbrevPhrase(line)
+		fmt.Printf("Abbreviation `%s` already exists with definition `%s`\n", abbrName, existingAbbrevPhrase)
 	}
 	return false
 }
