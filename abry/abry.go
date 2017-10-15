@@ -52,25 +52,17 @@ func getAbbrevCommand(abbrName string, abbrPhrase string) (string) {
     return fmt.Sprintf("    abbr --add %s %s\n", abbrName, abbrPhrase)
 }
 
-func shouldPrintNewAbbreviation(abbrName string, existingAbbrev string, alreadyPrinted bool) (bool) {
-    if !alreadyPrinted && existingAbbrev > abbrName {
-        return true
-    }
-    return false
+func maybeWriteNewAbbreviation(line string, abbrName string, abbrPhrase string, writer *bufio.Writer) (bool) {
+	existingAbbrev := getAbbrevName(line)
+	if existingAbbrev > abbrName {
+		abbrevCommand := getAbbrevCommand(abbrName, abbrPhrase)
+		writer.WriteString(abbrevCommand)
+		return true
+	}
+	return false
 }
 
-func main() {
-    args := os.Args
-    numberOfArgs := len(args)
-
-    if numberOfArgs < 3 {
-        printUsage()
-        os.Exit(1)
-    }
-
-    abbrName := args[1]
-    abbrPhrase := strings.Join(args[2:], " ")
-
+func addAbreviation(abbrName string, abbrPhrase string) {
     expanded := expandHome(abbreviationsFile)
     abbrevsFile, err := os.Open(expanded)
     check(err)
@@ -88,21 +80,29 @@ func main() {
     found := false
     for {
         line, err := reader.ReadString('\n')
-        if isAbbreviationLine(line) {
-            existingAbbrev := getAbbrevName(line)
-            if shouldPrintNewAbbreviation(abbrName, existingAbbrev, found) {
-                abbrevCommand := getAbbrevCommand(abbrName, abbrPhrase)
-                writer.WriteString(abbrevCommand)
-                found = true
-            }
-            writer.WriteString(line)
-        } else {
-            writer.WriteString(line)
+        if isAbbreviationLine(line) && !found {
+			found = maybeWriteNewAbbreviation(line, abbrName, abbrPhrase, writer)
         }
+		writer.WriteString(line)
         if err != nil {
             break
         }
     }
 
     writer.Flush()
+}
+
+func main() {
+    args := os.Args
+    numberOfArgs := len(args)
+
+    if numberOfArgs < 3 {
+        printUsage()
+        os.Exit(1)
+    }
+
+    abbrName := args[1]
+    abbrPhrase := strings.Join(args[2:], " ")
+
+	addAbreviation(abbrName, abbrPhrase)
 }
