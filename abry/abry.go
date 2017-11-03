@@ -58,7 +58,7 @@ func isAbbreviationLine(line string) bool {
 }
 
 func getAbbrevCommand(abbrName string, abbrPhrase string) string {
-	return fmt.Sprintf("    abbr --add %s %s\n", abbrName, abbrPhrase)
+	return fmt.Sprintf("    abbr --add %s '%s'\n", abbrName, abbrPhrase)
 }
 
 func maybeWriteNewAbbreviation(line string, abbrName string, abbrPhrase string, writer *bufio.Writer) bool {
