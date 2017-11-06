@@ -25,7 +25,10 @@ func addHostToAnsibleInventory(group string, host string) {
 	cfg, err := ini.LoadSources(ini.LoadOptions{AllowBooleanKeys: true}, inventoryFile)
 
 	groupSection, err := cfg.GetSection(group)
-	check(err)
+	if err != nil {
+		groupSection, err = cfg.NewSection(group)
+		check(err)
+	}
 
 	_, err = groupSection.NewBooleanKey(host)
 	check(err)
