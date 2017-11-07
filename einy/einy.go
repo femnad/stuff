@@ -20,8 +20,11 @@ func check(err error) {
 }
 
 func addHostToAnsibleInventory(group string, host string) {
+	ini.PrettyFormat = false
+
 	home := os.Getenv("HOME")
 	inventoryFile := strings.Replace(InventoryFile, "~", home, 1)
+
 	cfg, err := ini.LoadSources(ini.LoadOptions{AllowBooleanKeys: true}, inventoryFile)
 
 	groupSection, err := cfg.GetSection(group)
