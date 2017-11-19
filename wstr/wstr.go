@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"fmt"
 	"os"
+	"path/filepath"
 	"strings"
 )
 
@@ -18,6 +19,12 @@ func check(e error) {
 	}
 }
 
+func maybeCreateAWSDirectory(credentialsFile string) {
+	awsDirectoryPath := filepath.Dir(credentialsFile)
+	err := os.MkdirAll(awsDirectoryPath, 0700)
+	check(err)
+}
+
 func getAWSCredentialsFile() string {
 	home := os.Getenv("HOME")
 	return strings.Replace(credentialsFile, "~", home, 1)
@@ -25,6 +32,8 @@ func getAWSCredentialsFile() string {
 
 func appendProfileToCredentials(profileName string, id string, secret string) {
 	credentialsFile := getAWSCredentialsFile()
+	maybeCreateAWSDirectory(credentialsFile)
+
 	file, err := os.OpenFile(credentialsFile, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
 	check(err)
 	defer file.Close()
