@@ -2,6 +2,7 @@ package main
 
 import (
 	"bufio"
+	"errors"
 	"fmt"
 	"os"
 	"strings"
@@ -61,20 +62,21 @@ func getAbbrevCommand(abbrName string, abbrPhrase string) string {
 	return fmt.Sprintf("    abbr --add %s '%s'\n", abbrName, abbrPhrase)
 }
 
-func maybeWriteNewAbbreviation(line string, abbrName string, abbrPhrase string, writer *bufio.Writer) bool {
+func maybeWriteNewAbbreviation(line string, abbrName string, abbrPhrase string, writer *bufio.Writer) (bool, error) {
 	existingAbbrev := getAbbrevName(line)
 	if existingAbbrev > abbrName {
 		abbrevCommand := getAbbrevCommand(abbrName, abbrPhrase)
 		writer.WriteString(abbrevCommand)
-		return true
+		return true, nil
 	} else if existingAbbrev == abbrName {
 		existingAbbrevPhrase := getAbbrevPhrase(line)
 		fmt.Printf("Abbreviation `%s` already exists with definition `%s`\n", abbrName, existingAbbrevPhrase)
+		return false, errors.New("already exists")
 	}
-	return false
+	return false, nil
 }
 
-func addAbreviation(abbrName string, abbrPhrase string) {
+func addAbbreviation(abbrName string, abbrPhrase string) bool {
 	expanded := expandHome(abbreviationsFile)
 	abbrevsFile, err := os.Open(expanded)
 	check(err)
@@ -90,18 +92,24 @@ func addAbreviation(abbrName string, abbrPhrase string) {
 	writer := bufio.NewWriter(tempFile)
 
 	found := false
+	var writeErr error
 	for {
 		line, err := reader.ReadString('\n')
-		if isAbbreviationLine(line) && !found {
-			found = maybeWriteNewAbbreviation(line, abbrName, abbrPhrase, writer)
-		}
-		writer.WriteString(line)
 		if err != nil {
 			break
 		}
+		if isAbbreviationLine(line) && !found {
+			found, writeErr = maybeWriteNewAbbreviation(line, abbrName, abbrPhrase, writer)
+		}
+		if writeErr != nil {
+			return false
+		}
+		writer.WriteString(line)
 	}
 
 	writer.Flush()
+
+	return found
 }
 
 func main() {
@@ -116,5 +124,9 @@ func main() {
 	abbrName := args[1]
 	abbrPhrase := strings.Join(args[2:], " ")
 
-	addAbreviation(abbrName, abbrPhrase)
+	addOk := addAbbreviation(abbrName, abbrPhrase)
+	if addOk {
+		os.Exit(0)
+	}
+	os.Exit(2)
 }
