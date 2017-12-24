@@ -43,11 +43,11 @@ func startsWith(s string, sub string) bool {
 func getHostFromLine(line string) string {
 	trimmedLine := strings.TrimSpace(line)
 	split := strings.Split(trimmedLine, " ")
-	if len(split) != 2 {
+	if len(split) < 2 {
 		message := fmt.Sprintf("Unexpected host line %s", trimmedLine)
 		panic(message)
 	}
-	return split[1]
+	return strings.Join(split[1:], " ")
 }
 
 func getConfigLineKeyAndValue(trimmedLine string) (string, string) {
