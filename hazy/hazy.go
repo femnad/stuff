@@ -44,7 +44,8 @@ func getHostFromLine(line string) string {
 	trimmedLine := strings.TrimSpace(line)
 	split := strings.Split(trimmedLine, " ")
 	if len(split) != 2 {
-		panic("Unexpected host line")
+		message := fmt.Sprintf("Unexpected host line %s", trimmedLine)
+		panic(message)
 	}
 	return split[1]
 }
