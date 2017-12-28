@@ -12,6 +12,10 @@ Lazily add [fish shell](https://github.com/fish-shell/fish-shell) abbreviations.
 
 Add a host name to a group in [Ansible inventory file](http://docs.ansible.com/ansible/latest/intro_inventory.html#hosts-and-groups). Don't know if it'll work with default group, or at all.
 
+### fred ###
+
+A [rofi](https://github.com/DaveDavenport/rofi/) helper for [pass](https://www.passwordstore.org/) interaction.
+
 ### hazy ###
 
 Add a hostname for a host to the user's SSH configuration file. Tries really hard not to mess up with the existing file. But is it enough?
