@@ -1,2 +1,2 @@
 #!/usr/bin/env bash
-rofi -show pass -modi pass:fred -matching fuzzy
+rofi -show pass -modi pass:fred -matching fuzzy 2>&1
