@@ -20,6 +20,10 @@ A [rofi](https://github.com/DaveDavenport/rofi/) helper for [pass](https://www.p
 
 Add a hostname for a host to the user's SSH configuration file. Tries really hard not to mess up with the existing file. But is it enough?
 
+### pand ###
+
+Add a string to [fish-shell](https://github.com/fish-shell/fish-shell) history file, useful for a command has been `eval`ed but it'd be useful to have in history, too.
+
 ### wstr ###
 
 Append a profile to AWS credentials file, but like a cave person, i.e. do not check if the profile already exists. Was useful for testing [Minio](https://github.com/minio/minio) once.
