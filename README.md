@@ -8,6 +8,10 @@ A container repo for throwaway stuff.
 
 Lazily add [fish shell](https://github.com/fish-shell/fish-shell) abbreviations. Hardcodes the abbreviations file like a boss.
 
+### clrf ###
+
+Raise on the shoulders of [Clipster](https://github.com/mrichar1/clipster) and [Rofi](https://github.com/DaveDavenport/rofi) to copying strings between primary and clipboard selections.
+
 ### einy ###
 
 Add a host name to a group in [Ansible inventory file](http://docs.ansible.com/ansible/latest/intro_inventory.html#hosts-and-groups). Don't know if it'll work with default group, or at all.
