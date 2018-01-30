@@ -3,14 +3,27 @@ package main
 import (
 	"bufio"
 	"errors"
+	"flag"
 	"fmt"
+	"io"
+	"log"
 	"os"
 	"strings"
 )
 
-const abbreviationsFile = "~/.config/fish/functions/__fish_abbreviations.fish"
-const abbreviationCommand = "abbr"
-const tempFile = "/tmp/fish_abbrevs.fish"
+const (
+	abbreviationCommand = "abbr"
+	abbreviationPrefix  = "~/.config/fish/functions/"
+	defaultFileMode     = 0644
+	publicFile          = "__fish_abbreviations.fish"
+	privateFile         = "__self_abbreviations.fish"
+	tempFile            = "/tmp/fish_abbrevs.fish"
+)
+
+var abbreviationFiles = map[string]string{
+	"public":  publicFile,
+	"private": privateFile,
+}
 
 func check(e error) {
 	if e != nil {
@@ -59,11 +72,15 @@ func getAbbrevCommand(abbrName string, abbrPhrase string) string {
 	return fmt.Sprintf("abbr --add %s '%s'\n", abbrName, abbrPhrase)
 }
 
+func writeAbbreviation(writer *bufio.Writer, abbrName, abbrPhrase string) {
+	abbrevCommand := getAbbrevCommand(abbrName, abbrPhrase)
+	writer.WriteString(abbrevCommand)
+}
+
 func maybeWriteNewAbbreviation(line string, abbrName string, abbrPhrase string, writer *bufio.Writer) (bool, error) {
 	existingAbbrev := getAbbrevName(line)
 	if existingAbbrev > abbrName {
-		abbrevCommand := getAbbrevCommand(abbrName, abbrPhrase)
-		writer.WriteString(abbrevCommand)
+		writeAbbreviation(writer, abbrName, abbrPhrase)
 		return true, nil
 	} else if existingAbbrev == abbrName {
 		existingAbbrevPhrase := getAbbrevPhrase(line)
@@ -73,9 +90,37 @@ func maybeWriteNewAbbreviation(line string, abbrName string, abbrPhrase string, 
 	return false, nil
 }
 
-func addAbbreviation(abbrName string, abbrPhrase string) bool {
-	expanded := expandHome(abbreviationsFile)
-	abbrevsFile, err := os.Open(expanded)
+func doesNotExist(fileName string) bool {
+	_, err := os.Stat(fileName)
+	return os.IsNotExist(err)
+}
+
+func maybeCreateFile(fileName string) {
+	if doesNotExist(fileName) {
+		log.Printf("Creating file %s", fileName)
+		file, err := os.OpenFile(fileName, os.O_RDWR|os.O_CREATE, defaultFileMode)
+		check(err)
+		err = file.Close()
+		check(err)
+	}
+}
+
+func maybeInitialiseNewFile(line string, err error, abbrName, abbrPhrase string, writer *bufio.Writer) {
+	if line == "" && err == io.EOF {
+		writeAbbreviation(writer, abbrName, abbrPhrase)
+	}
+}
+
+func addAbbreviation(fileType, abbrName, abbrPhrase string) bool {
+	baseFileName, ok := abbreviationFiles[fileType]
+	if !ok {
+		log.Fatalf("No abbreviation file of type %s", fileType)
+	}
+	abbreviationsFile := expandHome(abbreviationPrefix + baseFileName)
+
+	maybeCreateFile(abbreviationsFile)
+
+	abbrevsFile, err := os.Open(abbreviationsFile)
 	check(err)
 	defer abbrevsFile.Close()
 
@@ -93,9 +138,10 @@ func addAbbreviation(abbrName string, abbrPhrase string) bool {
 	for {
 		line, err := reader.ReadString('\n')
 		if err != nil {
+			maybeInitialiseNewFile(line, err, abbrName, abbrPhrase, writer)
 			break
 		}
-		if isAbbreviationLine(line) && !found {
+		if (isAbbreviationLine(line) && !found) || line == "" {
 			found, writeErr = maybeWriteNewAbbreviation(line, abbrName, abbrPhrase, writer)
 		}
 		if writeErr != nil {
@@ -109,19 +155,23 @@ func addAbbreviation(abbrName string, abbrPhrase string) bool {
 	return found
 }
 
-func main() {
-	args := os.Args
-	numberOfArgs := len(args)
-
-	if numberOfArgs < 3 {
-		printUsage()
-		os.Exit(1)
+func getTypeAbbrevAndCommand() (string, string, string) {
+	fileType := flag.String("file", "public", "Type of abbreviation file")
+	flag.Parse()
+	abbrevAndcommandList := flag.Args()
+	if len(abbrevAndcommandList) < 2 {
+		panic("Need an abbreviation and at least one phrase")
 	}
+	abbreviation := abbrevAndcommandList[0]
+	commands := abbrevAndcommandList[1:]
+	command := strings.Join(commands, " ")
+	return *fileType, abbreviation, command
+}
 
-	abbrName := args[1]
-	abbrPhrase := strings.Join(args[2:], " ")
+func main() {
+	fileType, abbrName, abbrPhrase := getTypeAbbrevAndCommand()
 
-	addOk := addAbbreviation(abbrName, abbrPhrase)
+	addOk := addAbbreviation(fileType, abbrName, abbrPhrase)
 	if addOk {
 		os.Exit(0)
 	}
