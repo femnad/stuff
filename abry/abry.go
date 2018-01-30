@@ -36,10 +36,6 @@ func expandHome(path string) string {
 	return strings.Replace(path, "~", home, 1)
 }
 
-func printUsage() {
-	fmt.Printf("usage: abry <abbreviation> <abbreviation-definition>\n")
-}
-
 func getAsTokens(line string) []string {
 	trimmedLine := strings.TrimSpace(line)
 	return strings.Split(trimmedLine, " ")
@@ -105,18 +101,24 @@ func maybeCreateFile(fileName string) {
 	}
 }
 
-func maybeInitialiseNewFile(line string, err error, abbrName, abbrPhrase string, writer *bufio.Writer) {
+func maybeInitialiseNewFile(line string, err error, abbrName, abbrPhrase string, writer *bufio.Writer) bool {
 	if line == "" && err == io.EOF {
 		writeAbbreviation(writer, abbrName, abbrPhrase)
+		return true
 	}
+	return false
 }
 
-func addAbbreviation(fileType, abbrName, abbrPhrase string) bool {
+func getFileOfType(fileType string) string {
 	baseFileName, ok := abbreviationFiles[fileType]
 	if !ok {
 		log.Fatalf("No abbreviation file of type %s", fileType)
 	}
-	abbreviationsFile := expandHome(abbreviationPrefix + baseFileName)
+	return expandHome(abbreviationPrefix + baseFileName)
+}
+
+func addAbbreviation(fileType, abbrName, abbrPhrase string) bool {
+	abbreviationsFile := getFileOfType(fileType)
 
 	maybeCreateFile(abbreviationsFile)
 
@@ -138,7 +140,7 @@ func addAbbreviation(fileType, abbrName, abbrPhrase string) bool {
 	for {
 		line, err := reader.ReadString('\n')
 		if err != nil {
-			maybeInitialiseNewFile(line, err, abbrName, abbrPhrase, writer)
+			found = maybeInitialiseNewFile(line, err, abbrName, abbrPhrase, writer)
 			break
 		}
 		if (isAbbreviationLine(line) && !found) || line == "" {
@@ -168,11 +170,30 @@ func getTypeAbbrevAndCommand() (string, string, string) {
 	return *fileType, abbreviation, command
 }
 
+func copyTempFileToOriginal(fileType string) {
+	temp, err := os.Open(tempFile)
+	check(err)
+
+	abbreviationsFile := getFileOfType(fileType)
+	updatee, err := os.OpenFile(abbreviationsFile, os.O_RDWR, defaultFileMode)
+	check(err)
+
+	_, err = io.Copy(updatee, temp)
+	check(err)
+
+	temp.Close()
+	updatee.Close()
+
+	err = os.Remove(tempFile)
+	check(err)
+}
+
 func main() {
 	fileType, abbrName, abbrPhrase := getTypeAbbrevAndCommand()
 
 	addOk := addAbbreviation(fileType, abbrName, abbrPhrase)
 	if addOk {
+		copyTempFileToOriginal(fileType)
 		os.Exit(0)
 	}
 	os.Exit(2)
