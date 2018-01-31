@@ -111,7 +111,7 @@ func getFileOfType(fileType string) string {
 	return expandHome(abbreviationPrefix + baseFileName)
 }
 
-func searchLineForAbbrev(reader *bufio.Reader, writer *bufio.Writer, abbrName, abbrPhrase string) bool {
+func writeAbbrevWhereSuitable(reader *bufio.Reader, writer *bufio.Writer, abbrName, abbrPhrase string) {
 	var writeErr error
 	found := false
 
@@ -123,20 +123,15 @@ func searchLineForAbbrev(reader *bufio.Reader, writer *bufio.Writer, abbrName, a
 		if (isAbbreviationLine(line) && !found) || line == "" {
 			found, writeErr = maybeWriteNewAbbreviation(writer, line, abbrName, abbrPhrase)
 		}
-		if writeErr != nil {
-			return false
-		}
+		check(writeErr)
 		writer.WriteString(line)
 	}
 	if !found {
 		writeAbbreviation(writer, abbrName, abbrPhrase)
-		found = true
 	}
-
-	return found
 }
 
-func addAbbreviation(fileType, abbrName, abbrPhrase string) bool {
+func addAbbreviation(fileType, abbrName, abbrPhrase string) {
 	abbreviationsFile := getFileOfType(fileType)
 
 	newlyCreated := maybeCreateFile(abbreviationsFile)
@@ -154,17 +149,13 @@ func addAbbreviation(fileType, abbrName, abbrPhrase string) bool {
 
 	writer := bufio.NewWriter(tempFile)
 
-	found := false
 	if newlyCreated {
 		writeAbbreviation(writer, abbrName, abbrPhrase)
-		found = true
 	} else {
-		found = searchLineForAbbrev(reader, writer, abbrName, abbrPhrase)
+		writeAbbrevWhereSuitable(reader, writer, abbrName, abbrPhrase)
 	}
 
 	writer.Flush()
-
-	return found
 }
 
 func getTypeAbbrevAndCommand() (string, string, string) {
@@ -201,10 +192,8 @@ func copyTempFileToOriginal(fileType string) {
 func main() {
 	fileType, abbrName, abbrPhrase := getTypeAbbrevAndCommand()
 
-	addOk := addAbbreviation(fileType, abbrName, abbrPhrase)
-	if addOk {
-		copyTempFileToOriginal(fileType)
-		os.Exit(0)
-	}
+	addAbbreviation(fileType, abbrName, abbrPhrase)
+	copyTempFileToOriginal(fileType)
+
 	os.Exit(2)
 }
