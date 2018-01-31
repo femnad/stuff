@@ -73,7 +73,7 @@ func writeAbbreviation(writer *bufio.Writer, abbrName, abbrPhrase string) {
 	writer.WriteString(abbrevCommand)
 }
 
-func maybeWriteNewAbbreviation(line string, abbrName string, abbrPhrase string, writer *bufio.Writer) (bool, error) {
+func maybeWriteNewAbbreviation(writer *bufio.Writer, line, abbrName, abbrPhrase string) (bool, error) {
 	existingAbbrev := getAbbrevName(line)
 	if existingAbbrev > abbrName {
 		writeAbbreviation(writer, abbrName, abbrPhrase)
@@ -91,19 +91,13 @@ func doesNotExist(fileName string) bool {
 	return os.IsNotExist(err)
 }
 
-func maybeCreateFile(fileName string) {
+func maybeCreateFile(fileName string) bool {
 	if doesNotExist(fileName) {
 		log.Printf("Creating file %s", fileName)
 		file, err := os.OpenFile(fileName, os.O_RDWR|os.O_CREATE, defaultFileMode)
 		check(err)
 		err = file.Close()
 		check(err)
-	}
-}
-
-func maybeInitialiseNewFile(line string, err error, abbrName, abbrPhrase string, writer *bufio.Writer) bool {
-	if line == "" && err == io.EOF {
-		writeAbbreviation(writer, abbrName, abbrPhrase)
 		return true
 	}
 	return false
@@ -117,10 +111,35 @@ func getFileOfType(fileType string) string {
 	return expandHome(abbreviationPrefix + baseFileName)
 }
 
+func searchLineForAbbrev(reader *bufio.Reader, writer *bufio.Writer, abbrName, abbrPhrase string) bool {
+	var writeErr error
+	found := false
+
+	for {
+		line, err := reader.ReadString('\n')
+		if err != nil {
+			break
+		}
+		if (isAbbreviationLine(line) && !found) || line == "" {
+			found, writeErr = maybeWriteNewAbbreviation(writer, line, abbrName, abbrPhrase)
+		}
+		if writeErr != nil {
+			return false
+		}
+		writer.WriteString(line)
+	}
+	if !found {
+		writeAbbreviation(writer, abbrName, abbrPhrase)
+		found = true
+	}
+
+	return found
+}
+
 func addAbbreviation(fileType, abbrName, abbrPhrase string) bool {
 	abbreviationsFile := getFileOfType(fileType)
 
-	maybeCreateFile(abbreviationsFile)
+	newlyCreated := maybeCreateFile(abbreviationsFile)
 
 	abbrevsFile, err := os.Open(abbreviationsFile)
 	check(err)
@@ -136,20 +155,11 @@ func addAbbreviation(fileType, abbrName, abbrPhrase string) bool {
 	writer := bufio.NewWriter(tempFile)
 
 	found := false
-	var writeErr error
-	for {
-		line, err := reader.ReadString('\n')
-		if err != nil {
-			found = maybeInitialiseNewFile(line, err, abbrName, abbrPhrase, writer)
-			break
-		}
-		if (isAbbreviationLine(line) && !found) || line == "" {
-			found, writeErr = maybeWriteNewAbbreviation(line, abbrName, abbrPhrase, writer)
-		}
-		if writeErr != nil {
-			return false
-		}
-		writer.WriteString(line)
+	if newlyCreated {
+		writeAbbreviation(writer, abbrName, abbrPhrase)
+		found = true
+	} else {
+		found = searchLineForAbbrev(reader, writer, abbrName, abbrPhrase)
 	}
 
 	writer.Flush()
