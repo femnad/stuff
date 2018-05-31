@@ -8,9 +8,8 @@ import (
 	"path"
 	"strings"
 
-	"github.com/femnad/stuff/internal/history"
-
 	"github.com/femnad/mare"
+	"github.com/femnad/stuff/pkg/history"
 )
 
 const (
@@ -73,6 +72,14 @@ func removeLeadingSlashAndExtension(name string) string {
 	return strings.TrimLeft(nameWithExtensionRemoved, "/")
 }
 
+func buildPasswordMap(passwords []string) map[string]bool {
+	passwordMap := make(map[string]bool)
+	for _, password := range passwords {
+		passwordMap[password] = true
+	}
+	return passwordMap
+}
+
 func getPasswordNames() []string {
 	passwordStore := mare.ExpandUser(PasswordStore)
 	files := recursivelyListGpgFiles(passwordStore)
@@ -91,10 +98,23 @@ func getPasswordNamesNotInHistory(passwordNames []string, historyMap history.His
 	return mare.Filter(passwordNames, filterFn)
 }
 
+func filterRemovedHistoryItems(historyMap history.History, passwordMap map[string]bool) history.History {
+	filteredHistoryItems := make(history.History)
+	for historyItem := range historyMap {
+		_, exists := passwordMap[historyItem]
+		if exists {
+			filteredHistoryItems[historyItem] = historyMap[historyItem]
+		}
+	}
+	return filteredHistoryItems
+}
+
 func getOrderedPasswords() []string {
 	passwordNames := getPasswordNames()
+	passwordMap := buildPasswordMap(passwordNames)
 	historyMap := getHistoryMap()
-	passwordsNotInHistory := getPasswordNamesNotInHistory(passwordNames, historyMap)
+	existingHistoryItems := filterRemovedHistoryItems(historyMap, passwordMap)
+	passwordsNotInHistory := getPasswordNamesNotInHistory(passwordNames, existingHistoryItems)
 	orderedHistory := history.GetOrderedHistoryByCount(historyMap)
 	return append(orderedHistory, passwordsNotInHistory...)
 }
