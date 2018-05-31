@@ -115,7 +115,7 @@ func getOrderedPasswords() []string {
 	historyMap := getHistoryMap()
 	existingHistoryItems := filterRemovedHistoryItems(historyMap, passwordMap)
 	passwordsNotInHistory := getPasswordNamesNotInHistory(passwordNames, existingHistoryItems)
-	orderedHistory := history.GetOrderedHistoryByCount(historyMap)
+	orderedHistory := history.GetOrderedHistoryByCount(existingHistoryItems)
 	return append(orderedHistory, passwordsNotInHistory...)
 }
 
