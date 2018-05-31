@@ -8,7 +8,7 @@ import (
 	"path"
 	"strings"
 
-	"./history"
+	"github.com/femnad/stuff/internal/history"
 
 	"github.com/femnad/mare"
 )
