@@ -126,18 +126,20 @@ func main() {
 	newHost := true
 	for index, l := range config {
 		if l.Identifier == "Host" && l.Value == *host {
-			fmt.Println("found one")
 			pL := &l
 			newConfig := hostConfig{Key: "HostName", Value: *hostName}
 			separator := hostConfig{"", ""}
-			*pL = directive{Identifier: "Host", Value: *host, Config: []hostConfig{newConfig, separator}}
+			*pL = directive{Identifier: "Host", Value: *host,
+				Config: []hostConfig{newConfig, separator}}
 			config[index] = *pL
 			newHost = false
 		}
 	}
 	if newHost {
 		newConfig := hostConfig{Key: "HostName", Value: *hostName}
-		newDirective := directive{Identifier: "Host", Value: *host, Config: []hostConfig{newConfig}}
+		separator := hostConfig{"", ""}
+		newDirective := directive{Identifier: "Host", Value: *host,
+			Config: []hostConfig{newConfig, separator}}
 		config = append(config, newDirective)
 	}
 	for _, c := range config {
