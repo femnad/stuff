@@ -21,7 +21,6 @@ const (
 
 	defaultPrecision = 2
 	twoToTen         = 1024
-	usage            = "%s: simpleton binary multiple converter\nusage:\n"
 )
 
 var units = map[string]float64{
@@ -33,56 +32,78 @@ var units = map[string]float64{
 	"B": B,
 }
 
-func convert(input, output, number string) float64 {
-	parsedNumber, err := strconv.ParseFloat(number, 64)
-	mare.PanicIfErr(err)
+type params struct {
+	inputUnit string
+	out       string
+	precision int
+}
 
-	inUnit := math.Pow(twoToTen, units[input])
-	outUnit := math.Pow(twoToTen, units[output])
+func getMultiple(unit string) float64 {
+	unitQuantity, ok := units[unit]
+	if !ok {
+		msg := fmt.Sprintf("Unable to find multiplier for unit %s", unit)
+		panic(msg)
+	}
+	return unitQuantity
+}
 
-	return inUnit * parsedNumber / outUnit
+func powerOf1024(power float64) float64 {
+	return math.Pow(twoToTen, power)
+}
+
+func convert(input, output string, number float64) float64 {
+	inUnit := getMultiple(input)
+	outUnit := getMultiple(output)
+	return powerOf1024(inUnit) * number / powerOf1024(outUnit)
 }
 
 func getFormatString(numberOfDigits int) string {
 	return fmt.Sprintf("%%.%df\n", numberOfDigits)
 }
 
-func getFlagSet(name string, arguments []string) *flag.FlagSet {
-	flagSet := flag.NewFlagSet(name, flag.ExitOnError)
-	flagSet.Usage = func() {
-		fmt.Fprintf(flagSet.Output(), usage, name)
-		flagSet.PrintDefaults()
+func ensureCorrectNumArgs() {
+	arguments := flag.Args()
+	numArgs := len(arguments)
+	if numArgs != 1 {
+		msg := fmt.Sprintf("Incorrect number of arguments: %d", numArgs)
+		panic(msg)
 	}
-	return flagSet
 }
 
-func parseFlags(flagSet *flag.FlagSet, inputUnit, outputUnit string, precisionPoints int) string {
-	flagSet.StringVar(&inputUnit, "i", "B", "input unit")
-	flagSet.StringVar(&outputUnit, "o", "G", "output unit")
-
-	flagSet.IntVar(&precisionPoints, "p", defaultPrecision, "number of decimal precision digits")
-
-	flagSet.Parse(os.Args[1:])
-	number := flagSet.Arg(0)
-
+func parseNumber() float64 {
+	number := flag.Arg(0)
 	if number == "" {
-		flagSet.PrintDefaults()
+		flag.PrintDefaults()
 		os.Exit(1)
 	}
 
-	return number
+	parsedNumber, err := strconv.ParseFloat(number, 64)
+	mare.PanicIfErr(err)
+
+	return parsedNumber
 }
 
-func main() {
-	flagSet := getFlagSet(os.Args[0], os.Args[1:])
-
+func parseFlags() (float64, params) {
 	var inputUnit, outputUnit string
 	var precisionPoints int
 
-	number := parseFlags(flagSet, inputUnit, outputUnit, precisionPoints)
+	flag.StringVar(&inputUnit, "i", "B", "input unit")
+	flag.StringVar(&outputUnit, "o", "G", "output unit")
+	flag.IntVar(&precisionPoints, "p", defaultPrecision, "number of decimal precision digits")
 
-	converted := convert(inputUnit, outputUnit, number)
-	formatString := getFormatString(precisionPoints)
+	flag.Parse()
+
+	ensureCorrectNumArgs()
+	parsedNumber := parseNumber()
+
+	return parsedNumber, params{inputUnit: inputUnit, out: outputUnit, precision: precisionPoints}
+}
+
+func main() {
+	quantity, parameters := parseFlags()
+
+	converted := convert(parameters.inputUnit, parameters.out, quantity)
+	formatString := getFormatString(parameters.precision)
 
 	fmt.Printf(formatString, converted)
 }
