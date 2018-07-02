@@ -24,6 +24,10 @@ A [rofi](https://github.com/DaveDavenport/rofi/) helper for [pass](https://www.p
 
 Add a hostname for a host to the user's SSH configuration file. Tries really hard not to mess up with the existing file. But is it enough?
 
+### klen ###
+
+Convert multiples of bytes to other multiples of bytes.
+
 ### pand ###
 
 Add a string to [fish-shell](https://github.com/fish-shell/fish-shell) history file, useful for a command has been `eval`ed but it'd be useful to have in history, too.
