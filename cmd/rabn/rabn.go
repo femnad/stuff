@@ -123,15 +123,10 @@ func writeHistory(historyMap history, historyFile string) {
 }
 
 func addToHistory(selection, historyFile string) {
+	selection = mare.ExpandUser(selection)
 	historyMap := historyFromFile(historyFile)
 	historyMap[selection]++
 	writeHistory(historyMap, historyFile)
-}
-
-func outputAndAddToHistory(selection, historyFile string) {
-	selection = mare.ExpandUser(selection)
-	addToHistory(selection, historyFile)
-	fmt.Println(selection)
 }
 
 func getNonOccurring(subList, superList []string) []string {
@@ -162,6 +157,6 @@ func main() {
 	if len(args) == 0 {
 		listPathContentsWithHistory(*pathSpec, *historyFile)
 	} else {
-		outputAndAddToHistory(args[0], *historyFile)
+		addToHistory(args[0], *historyFile)
 	}
 }
