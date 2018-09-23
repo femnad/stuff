@@ -35,3 +35,11 @@ Add a string to [fish-shell](https://github.com/fish-shell/fish-shell) history f
 ### wstr ###
 
 Append a profile to AWS credentials file, but like a cave person, i.e. do not check if the profile already exists. Was useful for testing [Minio](https://github.com/minio/minio) once.
+
+### rabn ###
+
+List the directories under a given path if run with no arguments, else add the argument to a history file and print it to standard output. Intended to be used with fzf. Example for fish shell:
+
+```
+rabn -path ~/repos -history-file ~/.rabn_repos | fzf +s | read selection; rabn -history-file ~/.rabn_repos $selection
+```
