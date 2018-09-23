@@ -1,15 +1,15 @@
 package main
 
 import (
-	"strconv"
 	"bufio"
-	"sort"
-	"path/filepath"
-	"strings"
-	"github.com/femnad/mare"
-	"fmt"
-	"os"
 	"flag"
+	"fmt"
+	"github.com/femnad/mare"
+	"os"
+	"path/filepath"
+	"sort"
+	"strconv"
+	"strings"
 )
 
 const (
@@ -80,7 +80,7 @@ func getItemAndOccurrence(historyLine string) (string, int) {
 	}
 	items := tokens[0]
 	occurrence := parseDecimal(tokens[1])
-	return items,occurrence
+	return items, occurrence
 }
 
 func historyFromFile(historyFile string) history {
@@ -111,7 +111,7 @@ func getHistoryLine(item string, occurrence int) string {
 func writeHistory(historyMap history, historyFile string) {
 	dir := filepath.Dir(historyFile)
 	os.MkdirAll(dir, 0755)
-	file, err := os.OpenFile(historyFile, os.O_CREATE | os.O_RDWR, 0644)
+	file, err := os.OpenFile(historyFile, os.O_CREATE|os.O_RDWR, 0644)
 	mare.PanicIfErr(err)
 	defer file.Close()
 
@@ -149,7 +149,7 @@ func mergeOutputWithHistory(pathSpec, historyFile string) []string {
 
 func listPathContentsWithHistory(pathSpec, historyFile string) {
 	items := mergeOutputWithHistory(pathSpec, historyFile)
-	for _, item := range(items) {
+	for _, item := range items {
 		fmt.Println(item)
 	}
 }
