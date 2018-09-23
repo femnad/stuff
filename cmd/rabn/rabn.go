@@ -41,7 +41,19 @@ func listPathContents(path string) []string {
 	mare.PanicIfErr(err)
 	names, err := file.Readdirnames(0)
 	mare.PanicIfErr(err)
-	return names
+	return mare.Map(names, func(baseName string) string {
+		return filepath.Join(path, baseName)
+	})
+}
+
+func listPathSpecContents(pathSpec string) []string {
+	paths := strings.Split(pathSpec, ",")
+	paths = mare.Map(paths, mare.ExpandUser)
+	output := make([]string, 0)
+	for _, path := range paths {
+		output = append(output, listPathContents(path)...)
+	}
+	return output
 }
 
 type history map[string]int
@@ -73,7 +85,6 @@ func parseDecimal(number string) int {
 	mare.PanicIfErr(err)
 	return int(parsed)
 }
-
 
 func getItemAndOccurrence(historyLine string) (string, int) {
 	tokens := strings.Split(historyLine, separator)
@@ -143,15 +154,15 @@ func getNonOccurring(subList, superList []string) []string {
 	})
 }
 
-func mergeOutputWithHistory(path, historyFile string) []string {
+func mergeOutputWithHistory(pathSpec, historyFile string) []string {
 	orderedItems := getOrderedFromHistory(historyFile)
-	output := listPathContents(path)
+	output := listPathSpecContents(pathSpec)
 	itemsNotInHistory := getNonOccurring(orderedItems, output)
 	return append(orderedItems, itemsNotInHistory...)
 }
 
-func listPathContenstWithHistory(path, historyFile string) {
-	items := mergeOutputWithHistory(path, historyFile)
+func listPathContentsWithHistory(pathSpec, historyFile string) {
+	items := mergeOutputWithHistory(pathSpec, historyFile)
 	for _, item := range(items) {
 		fmt.Println(item)
 	}
@@ -159,11 +170,11 @@ func listPathContenstWithHistory(path, historyFile string) {
 
 func main() {
 	historyFile := flag.String("history-file", defaultHistoryFile(), "history file")
-	path := flag.String("path", ".", "list contents of the path")
+	pathSpec := flag.String("path-spec", ".", "list contents of path(s) [comma separated if multiple]")
 	flag.Parse()
 	args := flag.Args()
 	if len(args) == 0 {
-		listPathContenstWithHistory(*path, *historyFile)
+		listPathContentsWithHistory(*pathSpec, *historyFile)
 	} else {
 		outputAndAddToHistory(args[0], *historyFile)
 	}
