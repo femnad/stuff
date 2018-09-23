@@ -51,12 +51,12 @@ func getOrderedItems(selectionHistory history) []string {
 	occurrenceMap := make(occurrences)
 	occurrences := make([]int, 0)
 	for item, occurrence := range selectionHistory {
-		occurrences = append(occurrences, occurrence)
 		items, alreadyExists := occurrenceMap[occurrence]
 		if alreadyExists {
 			occurrenceMap[occurrence] = append(items, item)
 		} else {
 			occurrenceMap[occurrence] = []string{item}
+			occurrences = append(occurrences, occurrence)
 		}
 	}
 	sort.Sort(sort.Reverse(sort.IntSlice(occurrences)))
