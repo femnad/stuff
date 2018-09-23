@@ -7,7 +7,6 @@ import (
 	"path/filepath"
 	"strings"
 	"github.com/femnad/mare"
-	"os/exec"
 	"fmt"
 	"os"
 	"flag"
@@ -20,20 +19,6 @@ const (
 func defaultHistoryFile() string {
 	home := os.Getenv("HOME")
 	return fmt.Sprintf("%s/%s", home, ".local/share/rabn/rabn_history")
-}
-
-func printLines(output string) {
-	lines := strings.Split(output, "\n")
-	for _, line := range(lines) {
-		fmt.Println(line)
-	}
-}
-
-func runCommand(command string) {
-	args := strings.Split(command, " ")
-	out, err := exec.Command(args[0], args[1:]...).Output()
-	mare.PanicIfErr(err)
-	printLines(string(out))
 }
 
 func listPathContents(path string) []string {
@@ -144,6 +129,7 @@ func addToHistory(selection, historyFile string) {
 }
 
 func outputAndAddToHistory(selection, historyFile string) {
+	selection = mare.ExpandUser(selection)
 	addToHistory(selection, historyFile)
 	fmt.Println(selection)
 }
