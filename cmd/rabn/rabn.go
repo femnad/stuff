@@ -4,12 +4,13 @@ import (
 	"bufio"
 	"flag"
 	"fmt"
-	"github.com/femnad/mare"
 	"os"
 	"path/filepath"
 	"sort"
 	"strconv"
 	"strings"
+
+	"github.com/femnad/mare"
 )
 
 const (
@@ -99,18 +100,14 @@ func historyFromFile(historyFile string) history {
 	return historyMap
 }
 
-func getOrderedFromHistory(historyFile string) []string {
-	historyMap := historyFromFile(historyFile)
-	return getOrderedItems(historyMap)
-}
-
 func getHistoryLine(item string, occurrence int) string {
 	return fmt.Sprintf("%s%s%d\n", item, separator, occurrence)
 }
 
 func writeHistory(historyMap history, historyFile string) {
 	dir := filepath.Dir(historyFile)
-	os.MkdirAll(dir, 0755)
+	err := os.MkdirAll(dir, 0755)
+	mare.PanicIfErr(err)
 	file, err := os.OpenFile(historyFile, os.O_CREATE|os.O_RDWR, 0644)
 	mare.PanicIfErr(err)
 	defer file.Close()
@@ -135,9 +132,23 @@ func getNonOccurring(subList, superList []string) []string {
 	})
 }
 
+func eliminateStaleHistoryItems(historyMap history, listOutput []string) history {
+	upToDateHistory := make(history)
+	for itemKey, occurrence := range historyMap {
+		if mare.Contains(listOutput, itemKey) {
+			upToDateHistory[itemKey] = occurrence
+		}
+	}
+
+	return upToDateHistory
+}
+
 func mergeOutputWithHistory(pathSpec, historyFile string) []string {
-	orderedItems := getOrderedFromHistory(historyFile)
 	output := listPathSpecContents(pathSpec)
+	historyMap := historyFromFile(historyFile)
+	upToDateHistory := eliminateStaleHistoryItems(historyMap, output)
+	writeHistory(upToDateHistory, historyFile)
+	orderedItems := getOrderedItems(upToDateHistory)
 	itemsNotInHistory := getNonOccurring(orderedItems, output)
 	return append(orderedItems, itemsNotInHistory...)
 }
