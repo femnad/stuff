@@ -82,8 +82,9 @@ func getItemAndOccurrence(historyLine string) (*occurrence, error) {
 	tokens := strings.Split(historyLine, separator)
 	numTokens := len(tokens)
 	if numTokens != 2 {
-		fmt.Fprintf(os.Stderr, "Ignoring invalid line `%s`\n", historyLine)
-		return nil, errors.New("Invalid line")
+		_, err := fmt.Fprintf(os.Stderr, "Ignoring invalid line `%s`\n", historyLine)
+		mare.PanicIfErr(err)
+		return nil, errors.New("invalid line")
 	}
 	item := tokens[0]
 	count := parseDecimal(tokens[1])
@@ -119,7 +120,10 @@ func writeHistory(historyMap history, historyFile string) {
 	mare.PanicIfErr(err)
 	file, err := os.OpenFile(historyFile, os.O_CREATE|os.O_RDWR, 0644)
 	mare.PanicIfErr(err)
-	defer file.Close()
+	defer func(f *os.File) {
+		err := file.Close()
+		mare.PanicIfErr(err)
+	}(file)
 
 	for item, occurrence := range historyMap {
 		line := getHistoryLine(item, occurrence)
