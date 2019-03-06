@@ -2,6 +2,7 @@ package main
 
 import (
 	"bufio"
+	"errors"
 	"flag"
 	"fmt"
 	"os"
@@ -16,6 +17,11 @@ import (
 const (
 	separator = " = "
 )
+
+type occurrence struct {
+	count int
+	item  string
+}
 
 func defaultHistoryFile() string {
 	home := os.Getenv("HOME")
@@ -72,16 +78,16 @@ func parseDecimal(number string) int {
 	return int(parsed)
 }
 
-func getItemAndOccurrence(historyLine string) (string, int) {
+func getItemAndOccurrence(historyLine string) (*occurrence, error) {
 	tokens := strings.Split(historyLine, separator)
 	numTokens := len(tokens)
 	if numTokens != 2 {
-		message := fmt.Sprintf("Unexpected number of tokens %d for line %s", numTokens, historyLine)
-		panic(message)
+		fmt.Fprintf(os.Stderr, "Ignoring invalid line `%s`\n", historyLine)
+		return nil, errors.New("Invalid line")
 	}
-	items := tokens[0]
-	occurrence := parseDecimal(tokens[1])
-	return items, occurrence
+	item := tokens[0]
+	count := parseDecimal(tokens[1])
+	return &occurrence{item: item, count: count}, nil
 }
 
 func historyFromFile(historyFile string) history {
@@ -94,8 +100,11 @@ func historyFromFile(historyFile string) history {
 	historyMap := make(history)
 	for scanner.Scan() {
 		entry := scanner.Text()
-		item, occurrence := getItemAndOccurrence(entry)
-		historyMap[item] = occurrence
+		occurrence, err := getItemAndOccurrence(entry)
+		if err != nil {
+			continue
+		}
+		historyMap[occurrence.item] = occurrence.count
 	}
 	return historyMap
 }
