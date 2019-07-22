@@ -43,6 +43,10 @@ func listPathSpecContents(pathSpec string) []string {
 	paths = mare.Map(paths, mare.ExpandUser)
 	output := make([]string, 0)
 	for _, path := range paths {
+		_, err := os.Stat(path)
+		if err != nil {
+			continue
+		}
 		output = append(output, listPathContents(path)...)
 	}
 	return output
