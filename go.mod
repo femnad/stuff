@@ -9,3 +9,5 @@ require (
 	github.com/smartystreets/goconvey v0.0.0-20181108003508-044398e4856c // indirect
 	gopkg.in/ini.v1 v1.40.0 // indirect
 )
+
+go 1.13
