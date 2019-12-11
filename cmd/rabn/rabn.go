@@ -16,7 +16,7 @@ import (
 
 const (
 	separator      = " = "
-	tempFileSuffix = ".tmp"
+	tempFileSuffix = "tmp"
 )
 
 type occurrence struct {
@@ -128,7 +128,7 @@ func writeHistory(historyMap history, historyFile string) {
 	mare.PanicIfErr(err)
 
 	tempFileName := fmt.Sprintf("%s.%s", historyFile, tempFileSuffix)
-	tempFile, err := os.Open(tempFileName)
+	tempFile, err := os.OpenFile(tempFileName, os.O_CREATE|os.O_WRONLY, 0644)
 	mare.PanicIfErr(err)
 
 	defer func(original, updated *os.File) {
@@ -140,14 +140,11 @@ func writeHistory(historyMap history, historyFile string) {
 
 		err = os.Rename(updated.Name(), original.Name())
 		mare.PanicIfErr(err)
-
-		err = os.Remove(updated.Name())
-		mare.PanicIfErr(err)
 	}(file, tempFile)
 
 	for item, occurrence := range historyMap {
 		line := getHistoryLine(item, occurrence)
-		_, err := file.WriteString(line)
+		_, err := tempFile.WriteString(line)
 		mare.PanicIfErr(err)
 	}
 }
