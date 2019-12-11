@@ -99,6 +99,10 @@ func getItemAndOccurrence(historyLine string) (*occurrence, error) {
 func historyFromFile(historyFile string) history {
 	file, err := os.Open(historyFile)
 	if os.IsNotExist(err) {
+		file, err = os.OpenFile(historyFile, os.O_CREATE|os.O_WRONLY, 0644)
+		mare.PanicIfErr(err)
+		err = file.Close()
+		mare.PanicIfErr(err)
 		return make(history)
 	}
 	mare.PanicIfErr(err)
