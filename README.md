@@ -43,3 +43,7 @@ rabn -path ~/repos -history-file ~/.rabn_repos | fzf +s | read selection; rabn -
 ### wstr ###
 
 Append a profile to AWS credentials file, but like a cave person, i.e. do not check if the profile already exists. Was useful for testing [Minio](https://github.com/minio/minio) once.
+
+### qrdm
+
+Calculate the SHA256 checksum from the contents of the target URL.

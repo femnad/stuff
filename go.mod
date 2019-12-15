@@ -1,6 +1,7 @@
 module github.com/femnad/stuff
 
 require (
+	github.com/alexflint/go-arg v1.2.0
 	github.com/femnad/mare v0.0.2
 	github.com/go-ini/ini v1.40.0
 	github.com/gopherjs/gopherjs v0.0.0-20181103185306-d547d1d9531e // indirect
