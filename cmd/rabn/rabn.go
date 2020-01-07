@@ -21,6 +21,7 @@ const (
 )
 
 var args struct{
+	NumPathComponentsShown int `arg:"-P"`
 	HistoryFile string `arg:"-H,required"`
 	PathSpec string `arg:"-p"`
 	Selection string `arg:"positional" default:""`
@@ -41,6 +42,9 @@ func ensureParent(file string) (err error) {
 }
 
 func (h history) serialize(historyFile string) (err error) {
+	if len(h) == 0 {
+		return
+	}
 	out, err := yaml.Marshal(h)
 	if err != nil {
 		return err
@@ -73,6 +77,14 @@ func (h *history) addToHistory(selection string) {
 	(*h)[selection]++
 }
 
+func (h *history) eliminateStaleItems(listOutput []string) {
+	for itemKey := range *h {
+		if !mare.Contains(listOutput, itemKey) {
+			delete(*h, itemKey)
+		}
+	}
+}
+
 func listPathContents(path string) []string {
 	file, err := os.Open(path)
 	mare.PanicIfErr(err)
@@ -98,16 +110,19 @@ func listPathSpecContents(pathSpec string) []string {
 }
 
 func getOrderedItems(h history) (orderedItems []string) {
-	numItems := len(history{})
 	orderedMap := make(map[int][]string)
-	counts := make([]int, numItems)
 	for item, count := range h {
 		items := orderedMap[count]
 		orderedMap[count] = append(items, item)
+	}
+
+	counts := make([]int, len(orderedMap))
+	for count, _ := range orderedMap {
 		counts = append(counts, count)
 	}
+
 	sort.Sort(sort.Reverse(sort.IntSlice(counts)))
-	sorted := make([]string, numItems)
+	sorted := make([]string, 0)
 	for _, count := range counts {
 		occurrences, _ := orderedMap[count]
 		sorted = append(sorted, occurrences...)
@@ -141,7 +156,7 @@ func historyFromFile(historyFile string) (history, error) {
 	return h, err
 }
 
-func addToHistory(selection, historyFile string) {
+func addToHistory(historyFile, selection string) {
 	historyMap, err := historyFromFile(historyFile)
 	mare.PanicIfErr(err)
 	historyMap.addToHistory(selection)
@@ -149,21 +164,15 @@ func addToHistory(selection, historyFile string) {
 	mare.PanicIfErr(err)
 }
 
-func getNonOccurring(subList, superList []string) []string {
-	return mare.Filter(superList, func(item string) bool {
-		return !mare.Contains(subList, item)
-	})
-}
-
-func eliminateStaleHistoryItems(historyMap history, listOutput []string) history {
-	upToDateHistory := make(history)
-	for itemKey, occurrence := range historyMap {
-		if mare.Contains(listOutput, itemKey) {
-			upToDateHistory[itemKey] = occurrence
+func getNonOccurring(h history, allItems []string) []string {
+	nonOccurring := make([]string, 0)
+	for _, item := range allItems {
+		_, alreadyExist := h[item]
+		if !alreadyExist {
+			nonOccurring = append(nonOccurring, item)
 		}
 	}
-
-	return upToDateHistory
+	return nonOccurring
 }
 
 func mergeOutputWithHistory(pathSpec, historyFile string) ([]string, error) {
@@ -173,31 +182,43 @@ func mergeOutputWithHistory(pathSpec, historyFile string) ([]string, error) {
 		return make([]string, 0), fmt.Errorf("can't build history from history file %s: %s", historyFile, err)
 	}
 
-	upToDateHistory := eliminateStaleHistoryItems(historyMap, output)
-	err = upToDateHistory.serialize(historyFile)
-	if err != nil {
-		return make([]string, 0), err
-	}
+	historyMap.eliminateStaleItems(output)
 
-	orderedItems := getOrderedItems(upToDateHistory)
-	itemsNotInHistory := getNonOccurring(orderedItems, output)
+	orderedItems := getOrderedItems(historyMap)
+	itemsNotInHistory := getNonOccurring(historyMap, output)
 	return append(orderedItems, itemsNotInHistory...), nil
 }
 
-func listPathContentsWithHistory(pathSpec, historyFile string) {
+func stripOutput(item string, componentsToShow int) string {
+	if componentsToShow == 0 {
+		return item
+	}
+	components := strings.Split(item, "/")
+	components = mare.Filter(components, func(s string) bool {
+		return s != ""
+	})
+	numComponents := len(components)
+	if numComponents <= componentsToShow {
+		return item
+	}
+	stripFrom := numComponents - componentsToShow
+	return path.Join(components[stripFrom:]...)
+}
+
+func listPathContentsWithHistory(pathSpec, historyFile string, numComponentsShown int) {
 	items, err := mergeOutputWithHistory(pathSpec, historyFile)
 	mare.PanicIfErr(err)
 	for _, item := range items {
-		fmt.Println(item)
+		stripped := stripOutput(item, numComponentsShown)
+		fmt.Println(stripped)
 	}
 }
 
 func main() {
 	arg.MustParse(&args)
 	if args.Selection == "" {
-		listPathContentsWithHistory(args.PathSpec, args.HistoryFile)
+		listPathContentsWithHistory(args.PathSpec, args.HistoryFile, args.NumPathComponentsShown)
 	} else {
-		addToHistory(args.Selection, args.HistoryFile)
+		addToHistory(args.HistoryFile, args.Selection)
 	}
-
 }

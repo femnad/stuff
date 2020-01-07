@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"github.com/go-yaml/yaml"
+	"github.com/stretchr/testify/assert"
 	"io/ioutil"
 	"os"
 	"path"
@@ -30,7 +31,6 @@ func TestSerialization(t *testing.T) {
 		t.Errorf("failage: %s", err)
 	}
 }
-
 
 func testFail(t *testing.T, err error, msg string, args ...interface{}) {
 	if err != nil {
@@ -60,9 +60,10 @@ func TestDeserialization(t *testing.T) {
 	testFail(t, err, "removing test file")
 }
 
-func TestUpdate(t *testing.T) {
-	inputMap := map[string]int{"bar": barCount, "foo": fooCount, "baz": bazCount, "qux": quxCount}
-	input, err := yaml.Marshal(inputMap)
+var testHistoryMap = map[string]int{"bar": barCount, "foo": fooCount, "baz": bazCount, "qux": quxCount}
+
+func initTestHistory(t *testing.T) history {
+	input, err := yaml.Marshal(testHistoryMap)
 	testFail(t, err, "Marshalling")
 	dir, _ := path.Split(tempFile)
 	err = os.MkdirAll(dir, 0700)
@@ -72,18 +73,44 @@ func TestUpdate(t *testing.T) {
 	h := history{}
 	err = h.deserialize(tempFile)
 	testFail(t, err, "Deserializing")
+	return h
+}
 
-	addToHistory(bazKey, tempFile)
-	testFail(t, err, "Adding to history")
+func TestUpdate(t *testing.T) {
+	h := initTestHistory(t)
 
-	err = h.deserialize(tempFile)
+	addToHistory(tempFile, bazKey)
+
+	err := h.deserialize(tempFile)
 	testFail(t, err, "Deserializing")
 	newCount, _ := h[bazKey]
 	expectedCount := bazCount + 1
-	if newCount != expectedCount {
-		t.Errorf("failage: count for %s = %d, expected %d", bazKey, newCount, expectedCount)
-	}
+	assert.Equal(t, expectedCount, newCount, "Update count isn't correct")
 
 	err = os.Remove(tempFile)
 	testFail(t, err, "removing test file")
+}
+
+func strippingAssert(t *testing.T, path, expected string, components int) {
+	actual := stripOutput(path, components)
+	if expected != actual {
+		t.Errorf("test fail in stripping, expected %s, actual %s", expected, actual)
+	}
+}
+
+func TestStripping(t *testing.T) {
+	strippingAssert(t, "/foo/bar/baz", "/foo/bar/baz", 0)
+
+	strippingAssert(t, "/foo/bar/baz", "baz", 1)
+
+	strippingAssert(t, "/foo/bar/baz", "bar/baz", 2)
+
+	strippingAssert(t, "/foo/bar/baz", "/foo/bar/baz", 3)
+}
+
+func TestSorting(t *testing.T) {
+	h := initTestHistory(t)
+
+	items := getOrderedItems(h)
+	assert.Equal(t, len(testHistoryMap), len(items), "sorted items should be equal length to history map")
 }
