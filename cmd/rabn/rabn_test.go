@@ -12,24 +12,31 @@ import (
 
 const (
 	tempFile = "/tmp/rabn/test.yml"
+	barKey = "bar"
 	barCount = 12
 	fooCount = 6
 	bazKey = "baz"
 	bazCount = 6
+	quxKey = "qux"
 	quxCount = 1
 )
 
+func cleanup(t *testing.T) {
+	err := os.Remove(tempFile)
+	if err != nil {
+		t.Errorf("failage: %s", err)
+	}
+}
+
 func TestSerialization(t *testing.T) {
-	h := make(history)
-	h["bar"] = 1
+	h := history{}
+	h.Items = make(map[string]int)
+	h.Items["bar"] = 1
 	err := h.serialize(tempFile)
 	if err != nil {
 		t.Errorf("failage: %s", err)
 	}
-	err = os.Remove(tempFile)
-	if err != nil {
-		t.Errorf("failage: %s", err)
-	}
+	defer cleanup(t)
 }
 
 func testFail(t *testing.T, err error, msg string, args ...interface{}) {
@@ -40,55 +47,65 @@ func testFail(t *testing.T, err error, msg string, args ...interface{}) {
 }
 
 func TestDeserialization(t *testing.T) {
-	inputMap := map[string]int{"bar": barCount, "foo": fooCount, "baz": bazCount, "qux": quxCount}
+	inputMap := history{
+		Items: map[string]int{bazKey: bazCount},
+		Prefix: "",
+	}
 	input, err := yaml.Marshal(inputMap)
 	testFail(t, err, "Marshalling")
+
 	dir, _ := path.Split(tempFile)
 	err = os.MkdirAll(dir, 0700)
 	testFail(t, err, "Mkdirall")
 	err = ioutil.WriteFile(tempFile, input, 0600)
 	testFail(t, err, "Writing file")
+
+	defer cleanup(t)
+
 	h := history{}
 	err = h.deserialize(tempFile)
 	testFail(t, err, "Deserializing")
-	count, _ := h[bazKey]
+
+	count, _ := h.Items[bazKey]
 	if count != bazCount {
 		t.Errorf("failage: count for %s = %d, expected %d", bazKey, count, bazCount)
 	}
-
-	err = os.Remove(tempFile)
-	testFail(t, err, "removing test file")
 }
 
-var testHistoryMap = map[string]int{"bar": barCount, "foo": fooCount, "baz": bazCount, "qux": quxCount}
+var testHistoryMap = history{
+	Items: map[string]int{barKey: barCount, "foo": fooCount, "baz": bazCount, "qux": quxCount},
+}
 
 func initTestHistory(t *testing.T) history {
 	input, err := yaml.Marshal(testHistoryMap)
 	testFail(t, err, "Marshalling")
 	dir, _ := path.Split(tempFile)
 	err = os.MkdirAll(dir, 0700)
-	testFail(t, err, "Mkdirall")
+	testFail(t, err, "Mkdir all")
 	err = ioutil.WriteFile(tempFile, input, 0600)
 	testFail(t, err, "Writing file")
-	h := history{}
+
+	h := history{historyFile:tempFile}
 	err = h.deserialize(tempFile)
-	testFail(t, err, "Deserializing")
+	testFail(t, err, "De-serializing")
+
 	return h
 }
 
 func TestUpdate(t *testing.T) {
 	h := initTestHistory(t)
+	err := h.serialize(tempFile)
+	testFail(t, err, "Serializing")
+	defer cleanup(t)
 
-	addToHistory(tempFile, bazKey)
+	addToHistory(h, bazKey)
 
-	err := h.deserialize(tempFile)
-	testFail(t, err, "Deserializing")
-	newCount, _ := h[bazKey]
+	err = h.deserialize(tempFile)
+	testFail(t, err, "De-serializing")
+	newCount, _ := h.Items[bazKey]
 	expectedCount := bazCount + 1
-	assert.Equal(t, expectedCount, newCount, "Update count isn't correct")
+	assert.Equal(t, expectedCount, newCount, "Updated count isn't correct")
 
-	err = os.Remove(tempFile)
-	testFail(t, err, "removing test file")
 }
 
 func strippingAssert(t *testing.T, path, expected string, components int) {
@@ -112,5 +129,8 @@ func TestSorting(t *testing.T) {
 	h := initTestHistory(t)
 
 	items := getOrderedItems(h)
-	assert.Equal(t, len(testHistoryMap), len(items), "sorted items should be equal length to history map")
+	assert.Equal(t, len(testHistoryMap.Items), len(items), "sorted items should be equal length to history map")
+
+	assert.Equal(t, barKey, items[0], "Incorrect first item")
+	assert.Equal(t, quxKey, items[len(items) - 1], "Incorrect last item")
 }

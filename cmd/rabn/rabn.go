@@ -21,13 +21,18 @@ const (
 )
 
 var args struct{
-	NumPathComponentsShown int `arg:"-P"`
 	HistoryFile string `arg:"-H,required"`
-	PathSpec string `arg:"-p"`
+	PathSpec []string `arg:"-p,required,separate"`
 	Selection string `arg:"positional" default:""`
 }
 
-type history map[string]int
+type historyItems map[string]int
+
+type history struct {
+	Items  historyItems
+	Prefix string
+	historyFile string
+}
 
 func ensureParent(file string) (err error) {
 	dir := path.Dir(file)
@@ -42,7 +47,7 @@ func ensureParent(file string) (err error) {
 }
 
 func (h history) serialize(historyFile string) (err error) {
-	if len(h) == 0 {
+	if len(h.Items) == 0 {
 		return
 	}
 	out, err := yaml.Marshal(h)
@@ -74,15 +79,20 @@ func (h *history) deserialize(historyFile string) error {
 
 func (h *history) addToHistory(selection string) {
 	selection = mare.ExpandUser(selection)
-	(*h)[selection]++
+	h.Items[selection]++
 }
 
 func (h *history) eliminateStaleItems(listOutput []string) {
-	for itemKey := range *h {
-		if !mare.Contains(listOutput, itemKey) {
-			delete(*h, itemKey)
+	for itemKey := range h.Items {
+		canonicalItem := h.canonicalizeItem(itemKey)
+		if !mare.Contains(listOutput, canonicalItem) {
+			delete(h.Items, itemKey)
 		}
 	}
+}
+
+func (h *history) canonicalizeItem(item string) string {
+	return mare.ExpandUser(path.Join(h.Prefix, item))
 }
 
 func listPathContents(path string) []string {
@@ -95,8 +105,7 @@ func listPathContents(path string) []string {
 	})
 }
 
-func listPathSpecContents(pathSpec string) []string {
-	paths := strings.Split(pathSpec, ",")
+func listPathSpecContents(paths []string) []string {
 	paths = mare.Map(paths, mare.ExpandUser)
 	output := make([]string, 0)
 	for _, p := range paths {
@@ -111,13 +120,13 @@ func listPathSpecContents(pathSpec string) []string {
 
 func getOrderedItems(h history) (orderedItems []string) {
 	orderedMap := make(map[int][]string)
-	for item, count := range h {
+	for item, count := range h.Items {
 		items := orderedMap[count]
 		orderedMap[count] = append(items, item)
 	}
 
 	counts := make([]int, len(orderedMap))
-	for count, _ := range orderedMap {
+	for count := range orderedMap {
 		counts = append(counts, count)
 	}
 
@@ -130,7 +139,7 @@ func getOrderedItems(h history) (orderedItems []string) {
 	return sorted
 }
 
-func initHistory(historyFile string) (h history, err error) {
+func initHistory(historyFile, prefix string) (h history, err error) {
 	file, err := os.OpenFile(historyFile, os.O_CREATE|os.O_WRONLY, filePermissions)
 	if err != nil {
 		return h, fmt.Errorf("error creating history file: %s", err)
@@ -139,35 +148,43 @@ func initHistory(historyFile string) (h history, err error) {
 	if err != nil {
 		return h, fmt.Errorf("error closing history file: %s", err)
 	}
-	h = make(history)
+	h = history{Items:make(historyItems), Prefix: prefix, historyFile:historyFile}
 	return
-
 }
 
-func historyFromFile(historyFile string) (history, error) {
-	_, err := os.Stat(historyFile)
-	if os.IsNotExist(err) {
-		return initHistory(historyFile)
-	} else if err != nil && !os.IsNotExist(err) {
-		return history{}, err
+func getHistory(historyFile, prefix string) (history, error) {
+	h := history{historyFile:historyFile, Prefix:prefix}
+	err := h.deserialize(historyFile)
+	if err != nil {
+		return h, err
 	}
-	h := history{}
-	err = h.deserialize(historyFile)
+	if h.Items == nil {
+		h.Items = make(historyItems)
+	}
 	return h, err
 }
 
-func addToHistory(historyFile, selection string) {
-	historyMap, err := historyFromFile(historyFile)
-	mare.PanicIfErr(err)
-	historyMap.addToHistory(selection)
-	err = historyMap.serialize(historyFile)
+func historyFromFile(historyFile, prefix string) (history, error) {
+	historyFile = os.ExpandEnv(strings.Replace(historyFile, "~", "$HOME", 1))
+	_, err := os.Stat(historyFile)
+	if os.IsNotExist(err) {
+		return initHistory(historyFile, prefix)
+	} else if err != nil && !os.IsNotExist(err) {
+		return history{}, err
+	}
+	return getHistory(historyFile, prefix)
+}
+
+func addToHistory(h history, selection string) {
+	h.addToHistory(selection)
+	err := h.serialize(h.historyFile)
 	mare.PanicIfErr(err)
 }
 
 func getNonOccurring(h history, allItems []string) []string {
 	nonOccurring := make([]string, 0)
 	for _, item := range allItems {
-		_, alreadyExist := h[item]
+		_, alreadyExist := h.Items[item]
 		if !alreadyExist {
 			nonOccurring = append(nonOccurring, item)
 		}
@@ -175,17 +192,13 @@ func getNonOccurring(h history, allItems []string) []string {
 	return nonOccurring
 }
 
-func mergeOutputWithHistory(pathSpec, historyFile string) ([]string, error) {
-	output := listPathSpecContents(pathSpec)
-	historyMap, err := historyFromFile(historyFile)
-	if err != nil {
-		return make([]string, 0), fmt.Errorf("can't build history from history file %s: %s", historyFile, err)
-	}
+func mergeOutputWithHistory(h history, paths []string) ([]string, error) {
+	output := listPathSpecContents(paths)
 
-	historyMap.eliminateStaleItems(output)
+	h.eliminateStaleItems(output)
 
-	orderedItems := getOrderedItems(historyMap)
-	itemsNotInHistory := getNonOccurring(historyMap, output)
+	orderedItems := getOrderedItems(h)
+	itemsNotInHistory := getNonOccurring(h, output)
 	return append(orderedItems, itemsNotInHistory...), nil
 }
 
@@ -205,20 +218,24 @@ func stripOutput(item string, componentsToShow int) string {
 	return path.Join(components[stripFrom:]...)
 }
 
-func listPathContentsWithHistory(pathSpec, historyFile string, numComponentsShown int) {
-	items, err := mergeOutputWithHistory(pathSpec, historyFile)
+func listPathContentsWithHistory(h history, paths []string, prefix string) {
+	items, err := mergeOutputWithHistory(h, paths)
 	mare.PanicIfErr(err)
+
 	for _, item := range items {
-		stripped := stripOutput(item, numComponentsShown)
+		stripped := strings.TrimPrefix(item, prefix)
 		fmt.Println(stripped)
 	}
 }
 
 func main() {
 	arg.MustParse(&args)
+	prefix := findLongestCommonPrefix(args.PathSpec)
+	h, err := historyFromFile(args.HistoryFile, prefix)
+	mare.PanicIfErr(err)
 	if args.Selection == "" {
-		listPathContentsWithHistory(args.PathSpec, args.HistoryFile, args.NumPathComponentsShown)
+		listPathContentsWithHistory(h, args.PathSpec, prefix)
 	} else {
-		addToHistory(args.HistoryFile, args.Selection)
+		addToHistory(h, args.Selection)
 	}
 }
