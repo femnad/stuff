@@ -1,32 +1,76 @@
 package main
 
 import (
-	"bufio"
 	"errors"
-	"flag"
 	"fmt"
+	"github.com/alexflint/go-arg"
+	"io/ioutil"
 	"os"
+	"path"
 	"path/filepath"
 	"sort"
-	"strconv"
 	"strings"
 
 	"github.com/femnad/mare"
+	"gopkg.in/yaml.v2"
 )
 
 const (
-	separator      = " = "
-	tempFileSuffix = "tmp"
+	directoryPermissions = 0700
+	filePermissions = 0600
 )
 
-type occurrence struct {
-	count int
-	item  string
+var args struct{
+	HistoryFile string `arg:"-H,required"`
+	PathSpec string `arg:"-p"`
+	Selection string `arg:"positional" default:""`
 }
 
-func defaultHistoryFile() string {
-	home := os.Getenv("HOME")
-	return fmt.Sprintf("%s/%s", home, ".local/share/rabn/rabn_history")
+type history map[string]int
+
+func ensureParent(file string) (err error) {
+	dir := path.Dir(file)
+	_, err = os.Stat(dir)
+	if errors.Is(err, os.ErrNotExist) {
+		err = os.MkdirAll(dir, directoryPermissions)
+		if err != nil {
+			return fmt.Errorf("error creating directory %s: %s", dir, err)
+		}
+	}
+	return
+}
+
+func (h history) serialize(historyFile string) (err error) {
+	out, err := yaml.Marshal(h)
+	if err != nil {
+		return err
+	}
+	err = ensureParent(historyFile)
+	if err != nil {
+		return err
+	}
+	err = ioutil.WriteFile(historyFile, out, filePermissions)
+	if err != nil {
+		return err
+	}
+	return
+}
+
+func (h *history) deserialize(historyFile string) error {
+	contents, err := ioutil.ReadFile(historyFile)
+	if err != nil {
+		return err
+	}
+	err = yaml.Unmarshal(contents, h)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func (h *history) addToHistory(selection string) {
+	selection = mare.ExpandUser(selection)
+	(*h)[selection]++
 }
 
 func listPathContents(path string) []string {
@@ -43,121 +87,66 @@ func listPathSpecContents(pathSpec string) []string {
 	paths := strings.Split(pathSpec, ",")
 	paths = mare.Map(paths, mare.ExpandUser)
 	output := make([]string, 0)
-	for _, path := range paths {
-		_, err := os.Stat(path)
+	for _, p := range paths {
+		_, err := os.Stat(p)
 		if err != nil {
 			continue
 		}
-		output = append(output, listPathContents(path)...)
+		output = append(output, listPathContents(p)...)
 	}
 	return output
 }
 
-type history map[string]int
-type occurrences map[int][]string
-
-func getOrderedItems(selectionHistory history) []string {
-	occurrenceMap := make(occurrences)
-	occurrences := make([]int, 0)
-	for item, occurrence := range selectionHistory {
-		items, alreadyExists := occurrenceMap[occurrence]
-		if alreadyExists {
-			occurrenceMap[occurrence] = append(items, item)
-		} else {
-			occurrenceMap[occurrence] = []string{item}
-			occurrences = append(occurrences, occurrence)
-		}
+func getOrderedItems(h history) (orderedItems []string) {
+	numItems := len(history{})
+	orderedMap := make(map[int][]string)
+	counts := make([]int, numItems)
+	for item, count := range h {
+		items := orderedMap[count]
+		orderedMap[count] = append(items, item)
+		counts = append(counts, count)
 	}
-	sort.Sort(sort.Reverse(sort.IntSlice(occurrences)))
-	orderedItems := make([]string, 0)
-	for _, occurrence := range occurrences {
-		items := occurrenceMap[occurrence]
-		orderedItems = append(orderedItems, items...)
+	sort.Sort(sort.Reverse(sort.IntSlice(counts)))
+	sorted := make([]string, numItems)
+	for _, count := range counts {
+		occurrences, _ := orderedMap[count]
+		sorted = append(sorted, occurrences...)
 	}
-	return orderedItems
+	return sorted
 }
 
-func parseDecimal(number string) int {
-	parsed, err := strconv.ParseInt(number, 10, 64)
-	mare.PanicIfErr(err)
-	return int(parsed)
-}
-
-func getItemAndOccurrence(historyLine string) (*occurrence, error) {
-	tokens := strings.Split(historyLine, separator)
-	numTokens := len(tokens)
-	if numTokens != 2 {
-		_, err := fmt.Fprintf(os.Stderr, "Ignoring invalid line `%s`\n", historyLine)
-		mare.PanicIfErr(err)
-		return nil, errors.New("invalid line")
+func initHistory(historyFile string) (h history, err error) {
+	file, err := os.OpenFile(historyFile, os.O_CREATE|os.O_WRONLY, filePermissions)
+	if err != nil {
+		return h, fmt.Errorf("error creating history file: %s", err)
 	}
-	item := tokens[0]
-	count := parseDecimal(tokens[1])
-	return &occurrence{item: item, count: count}, nil
+	err = file.Close()
+	if err != nil {
+		return h, fmt.Errorf("error closing history file: %s", err)
+	}
+	h = make(history)
+	return
+
 }
 
-func historyFromFile(historyFile string) history {
-	file, err := os.Open(historyFile)
+func historyFromFile(historyFile string) (history, error) {
+	_, err := os.Stat(historyFile)
 	if os.IsNotExist(err) {
-		file, err = os.OpenFile(historyFile, os.O_CREATE|os.O_WRONLY, 0644)
-		mare.PanicIfErr(err)
-		err = file.Close()
-		mare.PanicIfErr(err)
-		return make(history)
+		return initHistory(historyFile)
+	} else if err != nil && !os.IsNotExist(err) {
+		return history{}, err
 	}
-	mare.PanicIfErr(err)
-	scanner := bufio.NewScanner(file)
-	historyMap := make(history)
-	for scanner.Scan() {
-		entry := scanner.Text()
-		occurrence, err := getItemAndOccurrence(entry)
-		if err != nil {
-			continue
-		}
-		historyMap[occurrence.item] = occurrence.count
-	}
-	return historyMap
-}
-
-func getHistoryLine(item string, occurrence int) string {
-	return fmt.Sprintf("%s%s%d\n", item, separator, occurrence)
-}
-
-func writeHistory(historyMap history, historyFile string) {
-	dir := filepath.Dir(historyFile)
-	err := os.MkdirAll(dir, 0755)
-	mare.PanicIfErr(err)
-
-	file, err := os.Open(historyFile)
-	mare.PanicIfErr(err)
-
-	tempFileName := fmt.Sprintf("%s.%s", historyFile, tempFileSuffix)
-	tempFile, err := os.OpenFile(tempFileName, os.O_CREATE|os.O_WRONLY, 0644)
-	mare.PanicIfErr(err)
-
-	defer func(original, updated *os.File) {
-		err := original.Close()
-		mare.PanicIfErr(err)
-
-		err = updated.Close()
-		mare.PanicIfErr(err)
-
-		err = os.Rename(updated.Name(), original.Name())
-		mare.PanicIfErr(err)
-	}(file, tempFile)
-
-	for item, occurrence := range historyMap {
-		line := getHistoryLine(item, occurrence)
-		_, err := tempFile.WriteString(line)
-		mare.PanicIfErr(err)
-	}
+	h := history{}
+	err = h.deserialize(historyFile)
+	return h, err
 }
 
 func addToHistory(selection, historyFile string) {
-	selection = mare.ExpandUser(selection)
-	historyMap := historyFromFile(historyFile)
-	historyMap[selection]++
-	writeHistory(historyMap, historyFile)
+	historyMap, err := historyFromFile(historyFile)
+	mare.PanicIfErr(err)
+	historyMap.addToHistory(selection)
+	err = historyMap.serialize(historyFile)
+	mare.PanicIfErr(err)
 }
 
 func getNonOccurring(subList, superList []string) []string {
@@ -177,31 +166,38 @@ func eliminateStaleHistoryItems(historyMap history, listOutput []string) history
 	return upToDateHistory
 }
 
-func mergeOutputWithHistory(pathSpec, historyFile string) []string {
+func mergeOutputWithHistory(pathSpec, historyFile string) ([]string, error) {
 	output := listPathSpecContents(pathSpec)
-	historyMap := historyFromFile(historyFile)
+	historyMap, err := historyFromFile(historyFile)
+	if err != nil {
+		return make([]string, 0), fmt.Errorf("can't build history from history file %s: %s", historyFile, err)
+	}
+
 	upToDateHistory := eliminateStaleHistoryItems(historyMap, output)
-	writeHistory(upToDateHistory, historyFile)
+	err = upToDateHistory.serialize(historyFile)
+	if err != nil {
+		return make([]string, 0), err
+	}
+
 	orderedItems := getOrderedItems(upToDateHistory)
 	itemsNotInHistory := getNonOccurring(orderedItems, output)
-	return append(orderedItems, itemsNotInHistory...)
+	return append(orderedItems, itemsNotInHistory...), nil
 }
 
 func listPathContentsWithHistory(pathSpec, historyFile string) {
-	items := mergeOutputWithHistory(pathSpec, historyFile)
+	items, err := mergeOutputWithHistory(pathSpec, historyFile)
+	mare.PanicIfErr(err)
 	for _, item := range items {
 		fmt.Println(item)
 	}
 }
 
 func main() {
-	historyFile := flag.String("history-file", defaultHistoryFile(), "history file")
-	pathSpec := flag.String("path-spec", ".", "list contents of path(s) [comma separated if multiple]")
-	flag.Parse()
-	args := flag.Args()
-	if len(args) == 0 {
-		listPathContentsWithHistory(*pathSpec, *historyFile)
+	arg.MustParse(&args)
+	if args.Selection == "" {
+		listPathContentsWithHistory(args.PathSpec, args.HistoryFile)
 	} else {
-		addToHistory(args[0], *historyFile)
+		addToHistory(args.Selection, args.HistoryFile)
 	}
+
 }
