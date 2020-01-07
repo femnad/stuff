@@ -95,6 +95,10 @@ func (h *history) canonicalizeItem(item string) string {
 	return mare.ExpandUser(path.Join(h.Prefix, item))
 }
 
+func (h *history) getItemAsEntry(item string) string {
+	return strings.TrimPrefix(item, mare.ExpandUser(h.Prefix))
+}
+
 func listPathContents(path string) []string {
 	file, err := os.Open(path)
 	mare.PanicIfErr(err)
@@ -184,9 +188,10 @@ func addToHistory(h history, selection string) {
 func getNonOccurring(h history, allItems []string) []string {
 	nonOccurring := make([]string, 0)
 	for _, item := range allItems {
-		_, alreadyExist := h.Items[item]
+		itemAsHistoryEntry := h.getItemAsEntry(item)
+		_, alreadyExist := h.Items[itemAsHistoryEntry]
 		if !alreadyExist {
-			nonOccurring = append(nonOccurring, item)
+			nonOccurring = append(nonOccurring, itemAsHistoryEntry)
 		}
 	}
 	return nonOccurring
