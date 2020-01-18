@@ -32,14 +32,6 @@ Convert multiples of bytes to other multiples of bytes.
 
 Add a string to [fish-shell](https://github.com/fish-shell/fish-shell) history file, useful for a command has been `eval`ed but it'd be useful to have in history, too.
 
-### rabn ###
-
-List the directories under a given path if run with no arguments, else add the argument to a history file and print it to standard output. Intended to be used with [fzf](https://github.com/junegunn/fzf). Example for fish shell:
-
-```fish
-rabn -path ~/repos -history-file ~/.rabn_repos | fzf +s | read selection; rabn -history-file ~/.rabn_repos $selection
-```
-
 ### wstr ###
 
 Append a profile to AWS credentials file, but like a cave person, i.e. do not check if the profile already exists. Was useful for testing [Minio](https://github.com/minio/minio) once.
